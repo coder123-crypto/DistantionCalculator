@@ -102,13 +102,14 @@ void MainWindow::openFile()
     if (QFile::exists(fileName)) {
         selectedPath = QFileInfo(fileName).path();
 
-        QImage image(fileName);
-        m_imageLabel->setPixmap(QPixmap::fromImage(image));
-        m_area->setVisible(true);
-        m_imageLabel->adjustSize();
+        if (updateExif(fileName)) {
+            QImage image(fileName);
+            m_imageLabel->setPixmap(QPixmap::fromImage(image));
+            m_area->setVisible(true);
+            m_imageLabel->adjustSize();
 
-        resetScale();
-        updateExif(fileName);
+            resetScale();
+        }
     }
 }
 
@@ -126,20 +127,51 @@ void MainWindow::resetScale()
     m_zoomSlider->setValue(100);
 }
 
-void MainWindow::updateExif(const QString& fileName)
+bool MainWindow::updateExif(const QString& fileName)
 {
     ExifData *ed = exif_data_new_from_file(fileName.toLocal8Bit().data());
 
-    const QString unit = parseString(ed, EXIF_TAG_FOCAL_PLANE_RESOLUTION_UNIT);
-    double multiple = 1.0;
-    if (unit == "Centimeter")
-        multiple = 0.1;
+    if (ed != nullptr) {
+        const QString unit = parseString(ed, EXIF_TAG_FOCAL_PLANE_RESOLUTION_UNIT);
+        const double focalLength = parseFocalLength(ed);
+        const double planeXResolution = parseDouble(ed, EXIF_TAG_FOCAL_PLANE_X_RESOLUTION);
+        const double planeYResolution = parseDouble(ed, EXIF_TAG_FOCAL_PLANE_X_RESOLUTION);
 
-    m_focalLengthSpinBox->setValue(parseFocalLength(ed));
-    m_imageWidthSpinBox->setValue(parseDouble(ed, EXIF_TAG_FOCAL_PLANE_X_RESOLUTION) * multiple);
-    m_imageHeightSpinBox->setValue(parseDouble(ed, EXIF_TAG_FOCAL_PLANE_Y_RESOLUTION) * multiple);
+        if (unit.isEmpty()) {
+            QMessageBox::warning(this, tr("Ошибка"), tr("В файле отсутствуют EXIF_TAG_FOCAL_PLANE_RESOLUTION_UNIT"));
+            return false;
+        }
 
-    delete ed;
+        if (std::isnan(focalLength)) {
+            QMessageBox::warning(this, tr("Ошибка"), tr("В файле отсутствуют EXIF_TAG_FOCAL_LENGTH"));
+            return false;
+        }
+
+        if (std::isnan(planeXResolution)) {
+            QMessageBox::warning(this, tr("Ошибка"), tr("В файле отсутствуют EXIF_TAG_FOCAL_PLANE_X_RESOLUTION"));
+            return false;
+        }
+
+        if (std::isnan(planeYResolution)) {
+            QMessageBox::warning(this, tr("Ошибка"), tr("В файле отсутствуют EXIF_TAG_FOCAL_PLANE_Y_RESOLUTION"));
+            return false;
+        }
+
+        double multiple = 1.0;
+        if (unit == "Centimeter")
+            multiple = 0.1;
+
+        m_focalLengthSpinBox->setValue(focalLength);
+        m_imageWidthSpinBox->setValue(planeXResolution * multiple);
+        m_imageHeightSpinBox->setValue(planeYResolution * multiple);
+
+        delete ed;
+        return true;
+    }
+    else {
+        QMessageBox::warning(this, tr("Ошибка"), tr("В файле отсутствуют exif данные"));
+        return false;
+    }
 }
 
 void MainWindow::setScale(int factor)

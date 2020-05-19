@@ -26,7 +26,7 @@ private slots:
 private:
     void makeMenu();
     void resetScale();
-    void updateExif(const QString &fileName);
+    bool updateExif(const QString &fileName);
 
     QScrollArea *m_area;
     DrawingLabel *m_imageLabel;
