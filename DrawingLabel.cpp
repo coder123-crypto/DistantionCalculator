@@ -34,5 +34,5 @@ void DrawingLabel::mouseMoveEvent(QMouseEvent *ev)
 {
     m_line.setP2(ev->pos());
 
-    emit lengthChanged(m_line.dx(), m_line.dy());
+    emit lengthChanged(m_line);
 }

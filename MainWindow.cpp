@@ -15,10 +15,10 @@
 #include <QSpinBox>
 #include <QSpacerItem>
 #include <QDoubleSpinBox>
-#include <QtMath>
 
 #include <DrawingLabel.h>
 #include <ExifHelpers.h>
+#include <QRangeFinderEngine.h>
 
 void adjustScrollBar(QScrollBar *scrollBar, const double factor)
 {
@@ -30,10 +30,11 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent),
     m_imageLabel(new DrawingLabel(this)),
     m_zoomSlider(new QSlider(Qt::Vertical, this)),
     m_focalLengthSpinBox(new QDoubleSpinBox(this)),
-    m_imageWidthSpinBox(new QDoubleSpinBox(this)),
-    m_imageHeightSpinBox(new QDoubleSpinBox(this)),
-    m_sensorWidthSpinBox(new QDoubleSpinBox(this)),
-    m_sensorHeightSpinBox(new QDoubleSpinBox(this))
+    m_planeResolutionXSpinBox(new QDoubleSpinBox(this)),
+    m_planeResolutionYSpinBox(new QDoubleSpinBox(this)),
+    m_objectSizeSpinBox(new QDoubleSpinBox(this)),
+    m_distantionSpinBox(new QDoubleSpinBox(this)),
+    m_engine(new QRangeFinderEngine(this))
 {
     setCentralWidget(new QWidget(this));
     makeMenu();
@@ -60,7 +61,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent),
         spinBox->setRange(0, 1000000);
         spinBox->setAlignment(Qt::AlignRight);
 
-        if (spinBox != m_sensorWidthSpinBox)
+        if (spinBox != m_objectSizeSpinBox)
             spinBox->setReadOnly(true);
     }
 
@@ -73,21 +74,31 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent),
     layout->addWidget(m_focalLengthSpinBox, 0, 2);
 
     layout->addWidget(new QLabel(tr("Разрешение по X, ppm:"), this), 0, 3);
-    layout->addWidget(m_imageWidthSpinBox, 0, 4);
+    layout->addWidget(m_planeResolutionXSpinBox, 0, 4);
     layout->addWidget(new QLabel(tr("Разрешение по Y, ppm:"), this), 1, 3);
-    layout->addWidget(m_imageHeightSpinBox, 1, 4);
+    layout->addWidget(m_planeResolutionYSpinBox, 1, 4);
 
     layout->addWidget(new QLabel(tr("Длина объекта, м:"), this), 0, 5);
-    layout->addWidget(m_sensorWidthSpinBox, 0, 6);
+    layout->addWidget(m_objectSizeSpinBox, 0, 6);
     layout->addWidget(new QLabel(tr("Расстояние, м:"), this), 1, 5);
-    layout->addWidget(m_sensorHeightSpinBox, 1, 6);
+    layout->addWidget(m_distantionSpinBox, 1, 6);
 
     layout->addItem(spacer, 0, 7);
 
     layout->addWidget(m_zoomSlider, 2, 0, 1, 1, Qt::AlignLeft);
     layout->addWidget(m_area, 2, 1, 1, 7);
 
-    connect(m_imageLabel, &DrawingLabel::lengthChanged, this, &MainWindow::setLength);
+    connect(m_imageLabel, &DrawingLabel::lengthChanged, m_engine, [=](QLineF d) {
+        d.setLength(d.length() / m_scaleFactor);
+        m_engine->setObjectRuler(d);
+    });
+
+    connect(m_objectSizeSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged), [=](double d){ m_engine->setObjectSize(d); });
+
+    connect(m_engine, &QRangeFinderEngine::focalLengthChanged, [=](double d){ m_focalLengthSpinBox->setValue(d * 1000.0); });
+    connect(m_engine, &QRangeFinderEngine::planeResolutionXChanged, m_planeResolutionXSpinBox, &QDoubleSpinBox::setValue);
+    connect(m_engine, &QRangeFinderEngine::planeResolutionYChanged, m_planeResolutionYSpinBox, &QDoubleSpinBox::setValue);
+    connect(m_engine, &QRangeFinderEngine::objectDistantionChanged, m_distantionSpinBox, &QDoubleSpinBox::setValue);
 }
 
 MainWindow::~MainWindow()
@@ -132,12 +143,12 @@ bool MainWindow::updateExif(const QString& fileName)
     ExifData *ed = exif_data_new_from_file(fileName.toLocal8Bit().data());
 
     if (ed != nullptr) {
-        const QString unit = parseString(ed, EXIF_TAG_FOCAL_PLANE_RESOLUTION_UNIT);
+        const QString resolutionUnit = parseString(ed, EXIF_TAG_FOCAL_PLANE_RESOLUTION_UNIT);
         const double focalLength = parseFocalLength(ed);
         const double planeXResolution = parseDouble(ed, EXIF_TAG_FOCAL_PLANE_X_RESOLUTION);
         const double planeYResolution = parseDouble(ed, EXIF_TAG_FOCAL_PLANE_X_RESOLUTION);
 
-        if (unit.isEmpty()) {
+        if (resolutionUnit.isEmpty()) {
             QMessageBox::warning(this, tr("Ошибка"), tr("В файле отсутствуют EXIF_TAG_FOCAL_PLANE_RESOLUTION_UNIT"));
             return false;
         }
@@ -157,13 +168,13 @@ bool MainWindow::updateExif(const QString& fileName)
             return false;
         }
 
-        double multiple = 1.0;
-        if (unit == "Centimeter")
-            multiple = 0.1;
+        PlaneResolutionUnit unit = PlaneResolutionUnit::Centimeter;
+        if (resolutionUnit == "Centimeter")
+            unit = PlaneResolutionUnit::Centimeter;
 
-        m_focalLengthSpinBox->setValue(focalLength);
-        m_imageWidthSpinBox->setValue(planeXResolution * multiple);
-        m_imageHeightSpinBox->setValue(planeYResolution * multiple);
+        m_engine->setFocalLength(focalLength / 1000.0);
+        m_engine->setPlaneResolutionX(planeXResolution, unit);
+        m_engine->setPlaneResolutionY(planeYResolution, unit);
 
         delete ed;
         return true;
@@ -182,20 +193,3 @@ void MainWindow::setScale(int factor)
     adjustScrollBar(m_area->horizontalScrollBar(), factor);
     adjustScrollBar(m_area->verticalScrollBar(), factor);
 }
-
-void MainWindow::setLength(double dx, double dy)
-{
-    dx /=  m_scaleFactor;
-    dy /=  m_scaleFactor;
-
-    const double focalLength = m_focalLengthSpinBox->value();
-    const double xResolution = m_imageWidthSpinBox->value();
-    const double yResolution = m_imageHeightSpinBox->value();
-    const double objectSize = m_sensorWidthSpinBox->value() * 1000.0;
-
-    const double sizeOnSensor = qSqrt(qPow(dx / xResolution, 2) + qPow(dy / yResolution, 2));
-    const double distantion = focalLength * (objectSize + sizeOnSensor) / sizeOnSensor;
-
-    m_sensorHeightSpinBox->setValue(distantion / 1000.0);
-}
-

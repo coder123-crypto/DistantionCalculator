@@ -9,6 +9,7 @@ class QSlider;
 class QSpinBox;
 class QDoubleSpinBox;
 class DrawingLabel;
+class QRangeFinderEngine;
 
 class MainWindow : public QMainWindow
 {
@@ -21,7 +22,6 @@ public:
 private slots:
     void openFile();
     void setScale(int factor);
-    void setLength(double dx, double dy);
 
 private:
     void makeMenu();
@@ -32,12 +32,13 @@ private:
     DrawingLabel *m_imageLabel;
     QSlider *m_zoomSlider;
     QDoubleSpinBox *m_focalLengthSpinBox;
-    QDoubleSpinBox *m_imageWidthSpinBox;
-    QDoubleSpinBox *m_imageHeightSpinBox;
-    QDoubleSpinBox *m_sensorWidthSpinBox;
-    QDoubleSpinBox *m_sensorHeightSpinBox;
+    QDoubleSpinBox *m_planeResolutionXSpinBox;
+    QDoubleSpinBox *m_planeResolutionYSpinBox;
+    QDoubleSpinBox *m_objectSizeSpinBox;
+    QDoubleSpinBox *m_distantionSpinBox;
 
     double m_scaleFactor = 1.0;
+    QRangeFinderEngine *m_engine;
 };
 
 #endif // MAINWINDOW_H

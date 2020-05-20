@@ -16,7 +16,7 @@ protected:
     void mouseMoveEvent(QMouseEvent *ev) override;
 
 signals:
-    void lengthChanged(double dx, double dy);
+    void lengthChanged(QLineF length);
 
 private:
     QLineF m_line;

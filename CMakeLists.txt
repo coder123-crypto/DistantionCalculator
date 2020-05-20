@@ -23,6 +23,9 @@ add_executable(DistantionCalculator
   DrawingLabel.cpp
   DrawingLabel.h
   ExifHelpers.h
+  QRangeFinderEngine.cpp
+  QRangeFinderEngine.h
+  PlaneResolutionUnit.h
 )
 
 target_link_libraries(DistantionCalculator PRIVATE Qt5::Widgets PUBLIC libexif)
