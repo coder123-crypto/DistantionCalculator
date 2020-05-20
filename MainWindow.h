@@ -10,6 +10,7 @@ class QSpinBox;
 class QDoubleSpinBox;
 class DrawingLabel;
 class QRangeFinderEngine;
+class QCheckBox;
 
 class MainWindow : public QMainWindow
 {
@@ -22,6 +23,7 @@ public:
 private slots:
     void openFile();
     void setScale(int factor);
+    void updateGrid();
 
 private:
     void makeMenu();
@@ -36,6 +38,9 @@ private:
     QDoubleSpinBox *m_planeResolutionYSpinBox;
     QDoubleSpinBox *m_objectSizeSpinBox;
     QDoubleSpinBox *m_distantionSpinBox;
+    QCheckBox *m_gridVisibleCheckBox;
+    QDoubleSpinBox *m_gridSizeSpinBox;
+    QDoubleSpinBox *m_gridDistantionSpinBox;
 
     double m_scaleFactor = 1.0;
     QRangeFinderEngine *m_engine;

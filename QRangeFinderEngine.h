@@ -21,6 +21,9 @@ signals:
     void objectSizeChanged(double size);
 
 public:
+    double pixelsPerMeterX(double distantion) const;
+    double pixelsPerMeterY(double distantion) const;
+
     void setFocalLength(const double focalLength);
     void setPlaneResolutionX(const double resolution, const PlaneResolutionUnit unit);
     void setPlaneResolutionY(const double resolution, const PlaneResolutionUnit unit);

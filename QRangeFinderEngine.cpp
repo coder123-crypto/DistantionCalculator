@@ -17,6 +17,26 @@ QRangeFinderEngine::QRangeFinderEngine(QObject *parent) : QObject(parent),
     connect(this, &QRangeFinderEngine::objectSizeChanged, this, &QRangeFinderEngine::updateDistantion);
 }
 
+double QRangeFinderEngine::pixelsPerMeterX(double distantion) const
+{
+    if (!std::isnan(focalLength()) && !std::isnan(planeResolutionX())) {
+        const double resolution = planeResolutionX() * 1000.0;
+        return qAbs(focalLength() * 1.0 * resolution / (focalLength() - distantion));
+    }
+    else
+        return 0.0;
+}
+
+double QRangeFinderEngine::pixelsPerMeterY(double distantion) const
+{
+    if (!std::isnan(focalLength()) && !std::isnan(planeResolutionY())) {
+        const double resolution = planeResolutionY() * 1000.0;
+        return qAbs(focalLength() * 1.0 * resolution / (focalLength() - distantion));
+    }
+    else
+        return 0.0;
+}
+
 void QRangeFinderEngine::setFocalLength(const double focalLength)
 {
     m_focalLength = focalLength;
@@ -103,7 +123,6 @@ void QRangeFinderEngine::updateDistantion()
 
         emit objectDistantionChanged(distantion);
     }
-    else {
+    else
         emit objectDistantionChanged(0.0);
-    }
 }

@@ -15,6 +15,8 @@
 #include <QSpinBox>
 #include <QSpacerItem>
 #include <QDoubleSpinBox>
+#include <QCheckBox>
+#include <QHBoxLayout>
 
 #include <DrawingLabel.h>
 #include <ExifHelpers.h>
@@ -34,6 +36,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent),
     m_planeResolutionYSpinBox(new QDoubleSpinBox(this)),
     m_objectSizeSpinBox(new QDoubleSpinBox(this)),
     m_distantionSpinBox(new QDoubleSpinBox(this)),
+    m_gridVisibleCheckBox(new QCheckBox(tr("Отображать сетку"), this)),
+    m_gridSizeSpinBox(new QDoubleSpinBox(this)),
+    m_gridDistantionSpinBox(new QDoubleSpinBox(this)),
     m_engine(new QRangeFinderEngine(this))
 {
     setCentralWidget(new QWidget(this));
@@ -57,19 +62,20 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent),
 
     foreach (QDoubleSpinBox *spinBox, findChildren<QDoubleSpinBox*>()) {
         spinBox->setDecimals(3);
-        spinBox->setButtonSymbols(QSpinBox::NoButtons);
         spinBox->setRange(0, 1000000);
         spinBox->setAlignment(Qt::AlignRight);
 
-        if (spinBox != m_objectSizeSpinBox)
+        if (spinBox != m_objectSizeSpinBox && spinBox != m_gridSizeSpinBox && spinBox != m_gridDistantionSpinBox)
             spinBox->setReadOnly(true);
-    }
 
-    QSpacerItem *spacer = new QSpacerItem(40, 20, QSizePolicy::Expanding, QSizePolicy::Minimum);
+        if (spinBox != m_gridSizeSpinBox && spinBox != m_gridDistantionSpinBox)
+            spinBox->setButtonSymbols(QSpinBox::NoButtons);
+    }
 
     QGridLayout *layout = new QGridLayout(centralWidget());
     layout->setSpacing(6);
 
+    // Создание шапки
     layout->addWidget(new QLabel(tr("Фокусное расстояние, мм:"), this), 0, 1);
     layout->addWidget(m_focalLengthSpinBox, 0, 2);
 
@@ -83,17 +89,34 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent),
     layout->addWidget(new QLabel(tr("Расстояние, м:"), this), 1, 5);
     layout->addWidget(m_distantionSpinBox, 1, 6);
 
-    layout->addItem(spacer, 0, 7);
+    layout->addItem(new QSpacerItem(40, 20, QSizePolicy::Expanding, QSizePolicy::Minimum), 0, 7);
 
     layout->addWidget(m_zoomSlider, 2, 0, 1, 1, Qt::AlignLeft);
     layout->addWidget(m_area, 2, 1, 1, 7);
 
+    // Создание управления сеткой
+    QHBoxLayout *gridLayout = new QHBoxLayout();
+
+    gridLayout->addWidget(m_gridVisibleCheckBox);
+    gridLayout->addWidget(new QLabel(tr("размером, м:"), this));
+    gridLayout->addWidget(m_gridSizeSpinBox);
+    gridLayout->addWidget(new QLabel(tr("на расстоянии, м:"), this));
+    gridLayout->addWidget(m_gridDistantionSpinBox);
+    gridLayout->addItem(new QSpacerItem(40, 20, QSizePolicy::Expanding, QSizePolicy::Minimum));
+
+    layout->addLayout(gridLayout, 3, 1, 1, 7);
+
+    // Сигналы
     connect(m_imageLabel, &DrawingLabel::lengthChanged, m_engine, [=](QLineF d) {
         d.setLength(d.length() / m_scaleFactor);
         m_engine->setObjectRuler(d);
     });
 
-    connect(m_objectSizeSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged), [=](double d){ m_engine->setObjectSize(d); });
+    connect(m_objectSizeSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged), [=](double d) { m_engine->setObjectSize(d); });
+
+    connect(m_gridVisibleCheckBox, &QCheckBox::stateChanged, [=](int s) { m_imageLabel->setGridVisible(s == Qt::Checked); });
+    connect(m_gridSizeSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged), [=](double) { updateGrid(); });
+    connect(m_gridDistantionSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged), [=](double) { updateGrid(); });
 
     connect(m_engine, &QRangeFinderEngine::focalLengthChanged, [=](double d){ m_focalLengthSpinBox->setValue(d * 1000.0); });
     connect(m_engine, &QRangeFinderEngine::planeResolutionXChanged, m_planeResolutionXSpinBox, &QDoubleSpinBox::setValue);
@@ -192,4 +215,14 @@ void MainWindow::setScale(int factor)
 
     adjustScrollBar(m_area->horizontalScrollBar(), factor);
     adjustScrollBar(m_area->verticalScrollBar(), factor);
+
+    updateGrid();
+}
+
+void MainWindow::updateGrid()
+{
+    int width = qRound(m_gridSizeSpinBox->value() * m_engine->pixelsPerMeterX(m_gridDistantionSpinBox->value()) * m_scaleFactor);
+    int height = qRound(m_gridSizeSpinBox->value() * m_engine->pixelsPerMeterY(m_gridDistantionSpinBox->value()) * m_scaleFactor);
+
+    m_imageLabel->setGridSize(QSize(width, height));
 }
